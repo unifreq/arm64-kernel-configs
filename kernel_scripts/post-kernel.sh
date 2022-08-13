@@ -228,7 +228,13 @@ function archive_dtbs() {
 	for PLAT in $PLATFORMS;do
             echo -n "  -> Archive platform ${PLAT} dtbs to $POST_HOME/dtb-${PLAT}-${VER}.tar.gz ... "
             cd $KERNEL_SRC_HOME/arch/arm64/boot/dts/${PLAT}
-            tar czf $POST_HOME/dtb-${PLAT}-${VER}.tar.gz *.dtb || clean_exit "archive dtbs failed!" 1
+	    file_list=$(mktemp /tmp/file_list.XXXXXX)
+	    find . -name '*.dtb' > $file_list
+	    find . -name '*.dtbo' >> $file_list
+	    find . -name '*.scr' >> $file_list
+	    find . -name 'README*' >> $file_list
+            tar -czf $POST_HOME/dtb-${PLAT}-${VER}.tar.gz -T $file_list || clean_exit "archive dtbs failed!" 1
+	    rm -f $file_list
             echo "done"
         done
         echo "Archive dtbs done!"
