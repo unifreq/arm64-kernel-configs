@@ -70,6 +70,7 @@ fi
 VERSION=$(grep -e '^VERSION = ' Makefile |awk '{print $3}')
 PATCHLEVEL=$(grep -e '^PATCHLEVEL = ' Makefile |awk '{print $3}')
 SUBLEVEL=$(grep -e '^SUBLEVEL = ' Makefile |awk '{print $3}')
+EXTRAVERSION=$(grep -e '^EXTRAVERSION = ' Makefile |awk '{print $3}')
 
 LTO=0
 if [ $VERSION -eq 5 ] &&  [ $PATCHLEVEL -ge 12 ] && [ $CLANG -eq 1 ];then
@@ -88,7 +89,7 @@ echo
 export LOCALVERSION=""
 make CC=${CC} LD=${LD} ${MFLAGS} dtbs
 VERSION_ADD=$(scripts/setlocalversion)
-KERNEL_VER=${VERSION}.${PATCHLEVEL}.${SUBLEVEL}${VERSION_ADD}
+KERNEL_VER=${VERSION}.${PATCHLEVEL}.${SUBLEVEL}${EXTRAVERSION}${VERSION_ADD}
 echo "Kernel version is $KERNEL_VER"
 
 if [ "$2" == "clean" ];then
