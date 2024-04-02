@@ -189,7 +189,7 @@ function cross_headers_install() {
 	echo "Header installed!"
 	echo
     )
-    rm -rf $FAKE_ROOT/usr/src/linux
+    rm -rf $FAKE_ROOT/${TMP_SRC_DIR}
 }
 
 function update_initramfs() {
