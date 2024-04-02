@@ -88,8 +88,15 @@ echo
 
 export LOCALVERSION=""
 make CC=${CC} LD=${LD} ${MFLAGS} dtbs
+
 VERSION_ADD=$(scripts/setlocalversion)
-KERNEL_VER=${VERSION}.${PATCHLEVEL}.${SUBLEVEL}${EXTRAVERSION}${VERSION_ADD}
+if [ $? -ne 0 ];then
+    export KERNELVERSION="${VERSION}.${PATCHLEVEL}.${SUBLEVEL}${EXTRAVERSION}"
+    KERNEL_VER=$(scripts/setlocalversion)
+else
+    KERNEL_VER="${VERSION}.${PATCHLEVEL}.${SUBLEVEL}${EXTRAVERSION}${VERSION_ADD}"
+fi
+
 echo "Kernel version is $KERNEL_VER"
 
 if [ "$2" == "clean" ];then
@@ -103,6 +110,7 @@ else
 fi
 
 PROCESS=$(cat /proc/cpuinfo | grep "processor" | wc -l)
+PROCESS=$((PROCESS -2))
 if [ -z "$PROCESS" ];then
     PROCESS=1
 fi
@@ -114,7 +122,7 @@ if [ $CCACHE -eq 1 ] && [ $CLANG -eq 0 ];then
     make CC="ccache ${CC}" LD=${LD} ${MFLAGS} Image modules dtbs -j${PROCESS}
     make_ret=$?
 else
-    make CC=${CC} LD=${LD} ${MFLAGS} Image modules dtbs -j${PROCESS}
+    make CC=${CC} ${RUST} LD=${LD} ${MFLAGS} Image modules dtbs -j${PROCESS}
     make_ret=$?
 fi
 echo -n `date` 

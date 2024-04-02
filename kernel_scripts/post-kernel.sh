@@ -11,6 +11,9 @@ source $ENV_FILE
 VER=$2
 echo "Posting kernel $VER ..."
 
+TMPFS_SIZE=3072M
+TMP_SRC_DIR="lib/modules/linux"
+
 case $CC in
     clang*) CLANG=1;;
          *) CLANG=0;;
@@ -75,7 +78,7 @@ function init_env() {
     echo -n "Init ${FAKE_ROOT} environments ... "
     rm -rf ${FAKE_ROOT}/lib/modules && mkdir ${FAKE_ROOT}/lib/modules
     rm -rf ${FAKE_ROOT}/boot && mkdir ${FAKE_ROOT}/boot 
-    mount -t tmpfs none ${FAKE_ROOT}/lib/modules || clean_exit "mount failed" 1
+    mount -t tmpfs -o size=$TMPFS_SIZE none ${FAKE_ROOT}/lib/modules || clean_exit "mount failed" 1
     mount -t tmpfs none ${FAKE_ROOT}/boot || clean_exit "mount failed" 2
     mount -o bind ${FAKE_ROOT}/lib/modules /lib/modules || clean_exit "mount failed" 3
     echo "done"
@@ -97,6 +100,11 @@ function modules_install() {
         cd $KERNEL_SRC_HOME
 	echo "Install modules ..."
         make CC=${CC} LD=${LD} $MFLAGS modules_install || clean_exit "install modules failed" 1
+
+	echo "Strip debug info ... "
+        find ${FAKE_ROOT}/lib/modules -name '*.ko' -exec strip --strip-debug {} \;
+	echo "Strip done"
+
 	echo "Modules installed!"
 	echo
     )
@@ -167,16 +175,37 @@ function headers_install() {
     )
 }
 
+function cross_headers_install() {
+    (
+	cd "$FAKE_ROOT/$TMP_SRC_DIR"
+	echo "Install headers ..."
+	if [ -d $HDR_PATH ];then
+	    rm -rf $HDR_PATH/*
+	else
+	    mkdir -p $HDR_PATH
+	fi
+
+	deploy_kernel_headers "${FAKE_ROOT}/${TMP_SRC_DIR}" $HDR_PATH "arm64"
+	echo "Header installed!"
+	echo
+    )
+    rm -rf $FAKE_ROOT/usr/src/linux
+}
+
 function update_initramfs() {
     (
         cd $KERNEL_SRC_HOME
         echo "Copy kernel files to ${FAKE_ROOT}/boot/ ..."
         cp -v System.map ${FAKE_ROOT}/boot/System.map-${VER}
         cp -v .config ${FAKE_ROOT}/boot/config-${VER}
-        cp -v arch/arm64/boot/Image ${FAKE_ROOT}/boot/vmlinuz-${VER}
-	cp -v /etc/resolv.conf ${FAKE_ROOT}/etc/
+
+        [ -f arch/arm64/boot/Image ] && \
+		cp -v arch/arm64/boot/Image ${FAKE_ROOT}/boot/vmlinuz-${VER}
+
 	echo "Copy done!"
 	echo
+
+	cp -v /etc/resolv.conf ${FAKE_ROOT}/etc/
 
 	# for cross compile
 	if [ `uname -m` == 'x86_64' ];then
@@ -199,11 +228,37 @@ function update_initramfs() {
 	            systemctl status systemd-binfmt.service
                 fi
 	    fi
+
+	    # Make cross platform scripts
+	    echo
+	    echo "======================================================================="
+	    echo "Make the cross platform headers ..."
+	    echo "Copy kernel sources to ${FAKE_ROOT}/${TMP_SRC_DIR} ... "
+	    [ -d "${FAKE_ROOT}/${TMP_SRC_DIR}" ] && rm -rf "${FAKE_ROOT}/${TMP_SRC_DIR}"
+	    mkdir -p "${FAKE_ROOT}/${TMP_SRC_DIR}" && \
+		git archive --format=tar main | tar xf - -C "${FAKE_ROOT}/${TMP_SRC_DIR}/" && \
+		cp -v .config Module.symvers "${FAKE_ROOT}/${TMP_SRC_DIR}/"
+		echo "Copy done!"
+	    echo
+
+	    echo "Make kernel/scripts for arm64 ... "
+            chroot ${FAKE_ROOT} <<EOF
+cd ${TMP_SRC_DIR} && make scripts
+exit
+EOF
+	    if [ $? -ne 0 ];then
+		clean_exit "make kernel/scripts failed!" 1
+	    fi
+	    echo "Make kernel/scripts done!"
+	    echo "======================================================================="
+	    echo
+	    # The end of make cross platform scripts
 	fi
 
         if [ -z ${INITRAMFS_COMPRESS} ];then
             INITRAMFS_COMPRESS=gzip
         fi
+
         echo "Use [${INITRAMFS_COMPRESS}] to compress initrd ... "
         sed -e "/COMPRESS=/d" -i ${FAKE_ROOT}/etc/initramfs-tools/initramfs.conf
         echo "COMPRESS=${INITRAMFS_COMPRESS}" >> ${FAKE_ROOT}/etc/initramfs-tools/initramfs.conf
@@ -228,13 +283,16 @@ function archive_dtbs() {
 	for PLAT in $PLATFORMS;do
             echo -n "  -> Archive platform ${PLAT} dtbs to $POST_HOME/dtb-${PLAT}-${VER}.tar.gz ... "
             cd $KERNEL_SRC_HOME/arch/arm64/boot/dts/${PLAT}
-	    file_list=$(mktemp /tmp/file_list.XXXXXX)
-	    find . -name '*.dtb' > $file_list
-	    find . -name '*.dtbo' >> $file_list
-	    find . -name '*.scr' >> $file_list
-	    find . -name 'README*' >> $file_list
-            tar -czf $POST_HOME/dtb-${PLAT}-${VER}.tar.gz -T $file_list || clean_exit "archive dtbs failed!" 1
-	    rm -f $file_list
+	    dtbs=$(ls *.dtb 2>/dev/null)
+	    if [ "$dtbs" != "" ];then
+	        file_list=$(mktemp /tmp/file_list.XXXXXX)
+	        find . -name '*.dtb' > $file_list
+	        find . -name '*.dtbo' >> $file_list
+	        find . -name '*.scr' >> $file_list
+	        find . -name 'README*' >> $file_list
+                tar -czf $POST_HOME/dtb-${PLAT}-${VER}.tar.gz -T $file_list || clean_exit "archive dtbs failed!" 1
+	        rm -f $file_list
+            fi
             echo "done"
         done
         echo "Archive dtbs done!"
@@ -281,8 +339,12 @@ init_env
 set_localversion
 make_dtbs
 modules_install
-headers_install
 update_initramfs
+if [ `uname -m` == 'x86_64' ];then
+    cross_headers_install
+else
+    headers_install
+fi
 archive_dtbs 
 archive_boot
 archive_modules
