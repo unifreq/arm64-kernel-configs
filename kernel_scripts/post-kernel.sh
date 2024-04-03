@@ -233,6 +233,11 @@ function update_initramfs() {
 	    echo
 	    echo "======================================================================="
 	    echo "Make the cross platform headers ..."
+	    echo $(date)
+	    local processors=$(cat /proc/cpuinfo | grep "processor" | wc -l)
+	    if [ -z "$processors" ] || [ "$processors" -lt 1 ];then
+		        processors=1
+	    fi
 	    echo "Copy kernel sources to ${FAKE_ROOT}/${TMP_SRC_DIR} ... "
 	    [ -d "${FAKE_ROOT}/${TMP_SRC_DIR}" ] && rm -rf "${FAKE_ROOT}/${TMP_SRC_DIR}"
 	    mkdir -p "${FAKE_ROOT}/${TMP_SRC_DIR}" && \
@@ -243,12 +248,13 @@ function update_initramfs() {
 
 	    echo "Make kernel/scripts for arm64 ... "
             chroot ${FAKE_ROOT} <<EOF
-cd ${TMP_SRC_DIR} && make scripts
+cd ${TMP_SRC_DIR} && make scripts -j${processors}
 exit
 EOF
 	    if [ $? -ne 0 ];then
 		clean_exit "make kernel/scripts failed!" 1
 	    fi
+	    echo $(date)
 	    echo "Make kernel/scripts done!"
 	    echo "======================================================================="
 	    echo
