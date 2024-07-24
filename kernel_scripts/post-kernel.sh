@@ -181,9 +181,8 @@ function cross_headers_install() {
 	echo "Install headers ..."
 	if [ -d $HDR_PATH ];then
 	    rm -rf $HDR_PATH/*
-	else
-	    mkdir -p $HDR_PATH
 	fi
+	mkdir -p $HDR_PATH
 
 	deploy_kernel_headers "${FAKE_ROOT}/${TMP_SRC_DIR}" $HDR_PATH "arm64"
 	echo "Header installed!"
@@ -241,7 +240,10 @@ function update_initramfs() {
 	    echo "Copy kernel sources to ${FAKE_ROOT}/${TMP_SRC_DIR} ... "
 	    [ -d "${FAKE_ROOT}/${TMP_SRC_DIR}" ] && rm -rf "${FAKE_ROOT}/${TMP_SRC_DIR}"
 	    mkdir -p "${FAKE_ROOT}/${TMP_SRC_DIR}" && \
-		git archive --format=tar main | tar xf - -C "${FAKE_ROOT}/${TMP_SRC_DIR}/" && \
+		git archive --format=tar HEAD | tar xf - -C "${FAKE_ROOT}/${TMP_SRC_DIR}/" && \
+		cp -a include/config "${FAKE_ROOT}/${TMP_SRC_DIR}/include" && \
+		cp -a include/generated "${FAKE_ROOT}/${TMP_SRC_DIR}/include" && \
+		cp -a arch/arm64/include/generated "${FAKE_ROOT}/${TMP_SRC_DIR}/arch/arm64/include" && \
 		cp -v .config Module.symvers "${FAKE_ROOT}/${TMP_SRC_DIR}/"
 		echo "Copy done!"
 	    echo
