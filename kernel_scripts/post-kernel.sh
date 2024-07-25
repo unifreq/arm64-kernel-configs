@@ -250,7 +250,7 @@ function update_initramfs() {
 
 	    echo "Make kernel/scripts for arm64 ... "
             chroot ${FAKE_ROOT} <<EOF
-cd ${TMP_SRC_DIR} && make scripts -j${processors}
+cd ${TMP_SRC_DIR} && make modules_prepare -j${processors} && make scripts -j${processors}
 exit
 EOF
 	    if [ $? -ne 0 ];then
