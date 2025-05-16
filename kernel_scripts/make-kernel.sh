@@ -111,6 +111,8 @@ fi
 
 PROCESS=$(cat /proc/cpuinfo | grep "processor" | wc -l)
 PROCESS=$((PROCESS -2))
+PROCESS=8
+PROCESS=$((PROCESS))
 if [ -z "$PROCESS" ];then
     PROCESS=1
 fi
@@ -118,11 +120,14 @@ fi
 echo "*************************************************************************"
 echo -n `date` 
 echo " : Start building the kernel ... "
+if [ -z "${LINUX_IMG}" ];then
+	LINUX_IMG=Image
+fi
 if [ $CCACHE -eq 1 ] && [ $CLANG -eq 0 ];then
-    make CC="ccache ${CC}" LD=${LD} ${MFLAGS} Image modules dtbs -j${PROCESS}
+    make CC="ccache ${CC}" LD=${LD} ${MFLAGS} ${LINUX_IMG} modules dtbs -j${PROCESS}
     make_ret=$?
 else
-    make CC=${CC} ${RUST} LD=${LD} ${MFLAGS} Image modules dtbs -j${PROCESS}
+    make CC=${CC} ${RUST} LD=${LD} ${MFLAGS} ${LINUX_IMG} modules dtbs -j${PROCESS}
     make_ret=$?
 fi
 echo -n `date` 

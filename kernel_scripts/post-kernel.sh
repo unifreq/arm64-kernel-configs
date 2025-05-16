@@ -42,27 +42,32 @@ function set_localversion() {
 }
 
 function clean_env() {
-    echo -n "Clean ${FAKE_ROOT} environments ... "
-    MNTS="/lib/modules ${FAKE_ROOT}/lib/modules  ${FAKE_ROOT}/boot"
+    echo "Clean ${FAKE_ROOT} environments ... "
+    MNTS="/usr/lib/modules ${FAKE_ROOT}/usr/lib/modules  ${FAKE_ROOT}/boot"
     for MNT in $MNTS;do
 	 i=1
          while :;do
+	     echo "Unmount ${MNT} ..."
+	     umount -l ${MNT} 2>/dev/null
              umount -f ${MNT} 2>/dev/null
-	     if [ $? -eq 0 ];then
+	     if ! cat /proc/mounts | awk '{print $2}' | grep -E "^${MNT}$";then
+		 echo "${MNT} has been successfully unmounted."
+		 echo 
                  break
              else
 	         let i++
 
 	         if [ $i -ge 3 ];then
-		     echo "umount ${MNT} failed!"
-                     exit 1
+		     echo "${MNT} unmount failed!"
+		     break
+                     # exit 1
 	         fi
 		 sleep 1
 	     fi
 	 done
     done
 
-    rm -rf ${FAKE_ROOT}/lib/modules && mkdir ${FAKE_ROOT}/lib/modules
+    rm -rf ${FAKE_ROOT}/usr/lib/modules && mkdir ${FAKE_ROOT}/usr/lib/modules
     rm -rf ${FAKE_ROOT}/boot && mkdir ${FAKE_ROOT}/boot
     echo "done"
     echo
@@ -76,11 +81,11 @@ function clean_exit() {
 
 function init_env() {
     echo -n "Init ${FAKE_ROOT} environments ... "
-    rm -rf ${FAKE_ROOT}/lib/modules && mkdir ${FAKE_ROOT}/lib/modules
+    rm -rf ${FAKE_ROOT}/usr/lib/modules && mkdir ${FAKE_ROOT}/usr/lib/modules
     rm -rf ${FAKE_ROOT}/boot && mkdir ${FAKE_ROOT}/boot 
-    mount -t tmpfs -o size=$TMPFS_SIZE none ${FAKE_ROOT}/lib/modules || clean_exit "mount failed" 1
+    mount -t tmpfs -o size=$TMPFS_SIZE none ${FAKE_ROOT}/usr/lib/modules || clean_exit "mount failed" 1
     mount -t tmpfs none ${FAKE_ROOT}/boot || clean_exit "mount failed" 2
-    mount -o bind ${FAKE_ROOT}/lib/modules /lib/modules || clean_exit "mount failed" 3
+    mount -o bind ${FAKE_ROOT}/usr/lib/modules /usr/lib/modules || clean_exit "mount failed" 3
     echo "done"
     echo
 }
@@ -101,8 +106,9 @@ function modules_install() {
 	echo "Install modules ..."
         make CC=${CC} LD=${LD} $MFLAGS modules_install || clean_exit "install modules failed" 1
 
+	# Please install binutils-multiarch
 	echo "Strip debug info ... "
-        find ${FAKE_ROOT}/lib/modules -name '*.ko' -exec strip --strip-debug {} \;
+        find ${FAKE_ROOT}/usr/lib/modules -name '*.ko' -exec strip --strip-debug {} \;
 	echo "Strip done"
 
 	echo "Modules installed!"
@@ -234,6 +240,8 @@ function update_initramfs() {
 	    echo "Make the cross platform headers ..."
 	    echo $(date)
 	    local processors=$(cat /proc/cpuinfo | grep "processor" | wc -l)
+	    processors=$((processors-2))
+	    processors=8
 	    if [ -z "$processors" ] || [ "$processors" -lt 1 ];then
 		        processors=1
 	    fi
